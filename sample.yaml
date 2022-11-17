@@ -1,0 +1,20 @@
+sample:
+  description: Sample for nPM1300 PMIC Charger and events
+  name: nPM1300 PMIC Charger and events
+
+common:
+    integration_platforms:
+      - nrf5340dk_nrf5340_cpuapp
+    platform_allow: nrf5340dk_nrf5340_cpuapp
+    extra_args: DTC_OVERLAY_FILE=boards/nrf5340dk_nrf5340_cpuapp.overlay
+    tags: pmic
+
+tests:
+  sample.pmic.charger_and_events:
+    harness: console
+    harness_config:
+      fixture: nPM1300_with_battery_setup
+      type: multi_line
+      ordered: true
+      regex:
+        -  "PMIC device ok"
