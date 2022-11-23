@@ -11,28 +11,26 @@
 #include <errno.h>
 #include <device.h>
 #include <zephyr.h>
-#include <zephyr/drivers/gpio.h>
+#include <app_led.h>
 #include <app_pmic.h>
 
 #include <zephyr/logging/log.h>
-
-static const struct gpio_dt_spec app_led0 = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
 
 void main(void)
 {
 	int ret;
 	
-	ret = gpio_pin_configure_dt(&app_led0, GPIO_OUTPUT_ACTIVE);
-	if (ret < 0) {
-		return;
-	}
+	ret = app_led_init();
+	if (ret < 0) return;
 
-	app_pmic_init();
+	ret = app_pmic_init();
+	if(ret == 0) app_led_on(APP_LED_PMIC);
+	else app_led_off(APP_LED_PMIC);
 
 	printk("Battery pack demo started\n");
 
 	while (1) {
-		gpio_pin_toggle_dt(&app_led0);
+		app_led_toggle(APP_LED_STATUS);
 		k_msleep(100);
 	}
 }
