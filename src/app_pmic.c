@@ -11,6 +11,8 @@
 #define LOG_MODULE_NAME pmic_charger
 LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
+static app_pmic_callback_t m_callback;
+
 /** @brief Possible events from requested nPM device. */
 typedef enum {
 	APP_CHARGER_EVENT_BATTERY_DETECTED, /** Event registered when battery connection detected. */
@@ -25,21 +27,6 @@ typedef enum {
 	APP_CHARGER_EVENT_BATTERY_LOW_ALERT2, /** Event registered when second low battery voltage alert detected. */
 } npm1300_charger_event_t;
 
-/** @brief Possible nPM device working states. */
-typedef enum {
-	APP_STATE_BATTERY_DISCONNECTED, /** State when VBUSIN disconnected and battery disconnected. */
-	APP_STATE_BATTERY_CONNECTED, /** State when VBUSIN disconnected and battery connected. */
-	APP_STATE_VBUS_CONNECTED_BATTERY_DISCONNECTED, /** State when VBUSIN connected and battery disconnected. */
-	APP_STATE_VBUS_CONNECTED_BATTERY_CONNECTED, /** State when VBUSIN connected and battery connected. */
-	APP_STATE_VBUS_CONNECTED_CHARGING_TRICKE, /** State when VBUSIN connected, battery connected and charger in trickle mode. */
-	APP_STATE_VBUS_CONNECTED_CHARGING_CC, /** State when VBUSIN connected, battery connected and charger in constant current mode. */
-	APP_STATE_VBUS_CONNECTED_CHARGING_CV, /** State when VBUSIN connected, battery connected and charger in constant voltage mode. */
-	APP_STATE_VBUS_CONNECTED_CHARGING_COMPLETED, /** State when VBUSIN connected, battery connected and charger completed charging. */
-	APP_STATE_VBUS_NOT_CONNECTED_DISCHARGING, /** State when VBUSIN disconnected, battery connected. */
-	APP_STATE_VBUS_NOT_CONNECTED_DISCHARGING_ALERT1, /** State when VBUSIN disconnected, battery connected and battery voltage is below first alert threshold. */
-	APP_STATE_VBUS_NOT_CONNECTED_DISCHARGING_ALERT2, /** State when VBUSIN disconnected, battery connected and battery voltage is below second alert threshold. */
-} npm1300_state_t;
-
 
 /**
  * @brief Register the new event received from nPM device.
@@ -48,107 +35,42 @@ typedef enum {
  */
 static void register_state_change(npm1300_charger_event_t event)
 {
-	static npm1300_state_t state = APP_STATE_VBUS_NOT_CONNECTED_DISCHARGING;
-
-	switch (event) {
-	case APP_CHARGER_EVENT_BATTERY_DETECTED:
-		if (state == APP_STATE_BATTERY_DISCONNECTED) {
-			state = APP_STATE_BATTERY_CONNECTED;
-			LOG_INF("State: BATTERY_CONNECTED");
-		}
-
-		if (state == APP_STATE_VBUS_CONNECTED_BATTERY_DISCONNECTED) {
-			state = APP_STATE_VBUS_CONNECTED_BATTERY_CONNECTED;
-			LOG_INF("State: VBUS_CONNECTED_BATTERY_CONNECTED");
-		}
-
-		if (state == APP_STATE_VBUS_CONNECTED_CHARGING_TRICKE ||
-		    state == APP_STATE_VBUS_CONNECTED_CHARGING_CC ||
-		    state == APP_STATE_VBUS_CONNECTED_CHARGING_CV ||
-		    state == APP_STATE_VBUS_CONNECTED_CHARGING_COMPLETED) {
-			LOG_INF("BATTERY_CONNECTED");
-		}
-		break;
-	case APP_CHARGER_EVENT_BATTERY_REMOVED:
-		if (state == APP_STATE_BATTERY_CONNECTED) {
-			state = APP_STATE_BATTERY_DISCONNECTED;
-			LOG_INF("State: BATTERY_DISCONNECTED");
-		}
-
-		if (state == APP_STATE_VBUS_CONNECTED_BATTERY_CONNECTED ||
-		    state == APP_STATE_VBUS_CONNECTED_CHARGING_TRICKE ||
-		    state == APP_STATE_VBUS_CONNECTED_CHARGING_CC ||
-		    state == APP_STATE_VBUS_CONNECTED_CHARGING_CV ||
-		    state == APP_STATE_VBUS_CONNECTED_CHARGING_COMPLETED) {
-			state = APP_STATE_VBUS_CONNECTED_BATTERY_DISCONNECTED;
-			LOG_INF("State: VBUS_CONNECTED_BATTERY_DISCONNECTED");
-		}
-		break;
-	case APP_CHARGER_EVENT_VBUS_DETECTED:
-		if (state == APP_STATE_VBUS_NOT_CONNECTED_DISCHARGING ||
-		    state == APP_STATE_VBUS_NOT_CONNECTED_DISCHARGING_ALERT1 ||
-		    state == APP_STATE_VBUS_NOT_CONNECTED_DISCHARGING_ALERT2) {
-			state = APP_STATE_VBUS_CONNECTED_BATTERY_CONNECTED;
-			LOG_INF("State: VBUS_CONNECTED_BATTERY_CONNECTED");
-		}
-		break;
-	case APP_CHARGER_EVENT_VBUS_REMOVED:
-		if (state == APP_STATE_VBUS_CONNECTED_CHARGING_TRICKE ||
-		    state == APP_STATE_VBUS_CONNECTED_CHARGING_CC ||
-		    state == APP_STATE_VBUS_CONNECTED_CHARGING_CV ||
-		    state == APP_STATE_VBUS_CONNECTED_CHARGING_COMPLETED) {
-			state = APP_STATE_VBUS_NOT_CONNECTED_DISCHARGING;
-			LOG_INF("State: VBUS_NOT_CONNECTED_DISCHARGING");
-		}
-		break;
-	case APP_CHARGER_EVENT_CHARGING_TRICKE_STARTED:
-		if (state != APP_STATE_VBUS_CONNECTED_CHARGING_TRICKE &&
-		    state != APP_STATE_VBUS_CONNECTED_CHARGING_CC &&
-		    state != APP_STATE_VBUS_CONNECTED_CHARGING_CV &&
-		    state != APP_STATE_VBUS_CONNECTED_CHARGING_COMPLETED) {
-			state = APP_STATE_VBUS_CONNECTED_CHARGING_TRICKE;
-			LOG_INF("State: VBUS_CONNECTED_CHARGING_TRICKE");
-		}
-		break;
-	case APP_CHARGER_EVENT_CHARGING_CC_STARTED:
-		if (state != APP_STATE_VBUS_CONNECTED_CHARGING_CC &&
-		    state != APP_STATE_VBUS_CONNECTED_CHARGING_CV &&
-		    state != APP_STATE_VBUS_CONNECTED_CHARGING_COMPLETED) {
-			state = APP_STATE_VBUS_CONNECTED_CHARGING_CC;
-			LOG_INF("State: VBUS_CONNECTED_CHARGING_CC");
-		}
-		break;
-	case APP_CHARGER_EVENT_CHARGING_CV_STARTED:
-		if (state != APP_STATE_VBUS_CONNECTED_CHARGING_CV &&
-		    state != APP_STATE_VBUS_CONNECTED_CHARGING_COMPLETED) {
-			state = APP_STATE_VBUS_CONNECTED_CHARGING_CV;
-			LOG_INF("State: VBUS_CONNECTED_CHARGING_CV");
-		}
-		break;
-	case APP_CHARGER_EVENT_CHARGING_COMPLETED:
-		if (state != APP_STATE_VBUS_CONNECTED_CHARGING_COMPLETED) {
-			state = APP_STATE_VBUS_CONNECTED_CHARGING_COMPLETED;
-			LOG_INF("State: VBUS_CONNECTED_CHARGING_COMPLETED");
-		}
-		break;
-	case APP_CHARGER_EVENT_BATTERY_LOW_ALERT1:
-		if (state == APP_STATE_VBUS_NOT_CONNECTED_DISCHARGING) {
-			state = APP_STATE_VBUS_NOT_CONNECTED_DISCHARGING_ALERT1;
-			LOG_INF("State: VBUS_NOT_CONNECTED_DISCHARGING_ALERT1");
-		}
-		break;
-	case APP_CHARGER_EVENT_BATTERY_LOW_ALERT2:
-		if (state == APP_STATE_VBUS_NOT_CONNECTED_DISCHARGING ||
-		    state == APP_STATE_VBUS_NOT_CONNECTED_DISCHARGING_ALERT1) {
-			state = APP_STATE_VBUS_NOT_CONNECTED_DISCHARGING_ALERT2;
-			LOG_INF("State: VBUS_NOT_CONNECTED_DISCHARGING_ALERT2\n");
-		}
-		break;
-
-	default:
-		LOG_INF("Unsupported event: %d", event);
-		break;
+	static app_pmic_evt_t app_event;
+	switch(event) {
+		case APP_CHARGER_EVENT_BATTERY_DETECTED:
+			LOG_INF("0 APP_CHARGER_EVENT_BATTERY_DETECTED");
+			break;
+		case APP_CHARGER_EVENT_BATTERY_REMOVED:
+			LOG_INF("1 APP_CHARGER_EVENT_BATTERY_REMOVED");
+			break;
+		case APP_CHARGER_EVENT_VBUS_DETECTED: 
+			LOG_INF("2 APP_CHARGER_EVENT_VBUS_DETECTED");
+			break;
+		case APP_CHARGER_EVENT_VBUS_REMOVED: 
+			LOG_INF("3 APP_CHARGER_EVENT_VBUS_REMOVED");
+			break;
+		case APP_CHARGER_EVENT_CHARGING_TRICKE_STARTED: 
+			LOG_INF("4 APP_CHARGER_EVENT_CHARGING_TRICKE_STARTED");
+			break; 
+		case APP_CHARGER_EVENT_CHARGING_CC_STARTED:
+			LOG_INF("5 APP_CHARGER_EVENT_CHARGING_CC_STARTED");
+			break;
+		case APP_CHARGER_EVENT_CHARGING_CV_STARTED:
+			LOG_INF("6 APP_CHARGER_EVENT_CHARGING_CV_STARTED");
+			break;
+		case APP_CHARGER_EVENT_CHARGING_COMPLETED:
+			LOG_INF("7 APP_CHARGER_EVENT_CHARGING_COMPLETED");
+			break;
+		case APP_CHARGER_EVENT_BATTERY_LOW_ALERT1:
+			LOG_INF("8 APP_CHARGER_EVENT_BATTERY_LOW_ALERT1");
+			break;
+		case APP_CHARGER_EVENT_BATTERY_LOW_ALERT2:
+		default:
+			LOG_INF("event %i", event);
+			break;
 	}
+	app_event.type = event;
+	m_callback(&app_event);
 }
 
 /**
@@ -163,10 +85,10 @@ static void vbusin_callback(npmx_instance_t *p_pm, npmx_callback_type_t type, ui
 	if (mask & (uint8_t)NPMX_EVENT_GROUP_VBUSIN_DETECTED_MASK) {
 		register_state_change(APP_CHARGER_EVENT_VBUS_DETECTED);
 	}
-
-	if (mask & (uint8_t)NPMX_EVENT_GROUP_VBUSIN_REMOVED_MASK) {
+	else if (mask & (uint8_t)NPMX_EVENT_GROUP_VBUSIN_REMOVED_MASK) {
 		register_state_change(APP_CHARGER_EVENT_VBUS_REMOVED);
 	}
+	else LOG_WRN("Unhandled vbusin callback reveived!");
 }
 
 /**
@@ -222,18 +144,16 @@ static void charger_status_callback(npmx_instance_t *p_pm, npmx_callback_type_t 
 		if (status & NPMX_CHARGER_STATUS_TRICKLE_CHARGE_MASK) {
 			register_state_change(APP_CHARGER_EVENT_CHARGING_TRICKE_STARTED);
 		}
-
-		if (status & NPMX_CHARGER_STATUS_CONSTANT_CURRENT_MASK) {
+		else if (status & NPMX_CHARGER_STATUS_CONSTANT_CURRENT_MASK) {
 			register_state_change(APP_CHARGER_EVENT_CHARGING_CC_STARTED);
 		}
-
-		if (status & NPMX_CHARGER_STATUS_CONSTANT_VOLTAGE_MASK) {
+		else if (status & NPMX_CHARGER_STATUS_CONSTANT_VOLTAGE_MASK) {
 			register_state_change(APP_CHARGER_EVENT_CHARGING_CV_STARTED);
 		}
-
-		if (status & NPMX_CHARGER_STATUS_COMPLETED_MASK) {
+		else if (status & NPMX_CHARGER_STATUS_COMPLETED_MASK) {
 			register_state_change(APP_CHARGER_EVENT_CHARGING_COMPLETED);
 		}
+		else LOG_WRN("Unhandled charger status received!!");
 	}
 }
 
@@ -299,9 +219,9 @@ static npmx_charger_voltage_t mv_to_charger_voltage_enum(uint32_t mv)
 	}
 }
 
-int app_pmic_init(void)
+int app_pmic_init(app_pmic_callback_t callback)
 {
-		const struct device *pmic_dev = DEVICE_DT_GET(DT_NODELABEL(npm_0));
+	const struct device *pmic_dev = DEVICE_DT_GET(DT_NODELABEL(npm_0));
 
 	if (!device_is_ready(pmic_dev)) {
 		LOG_INF("PMIC device is not ready");
@@ -309,6 +229,8 @@ int app_pmic_init(void)
 	} else {
 		LOG_INF("PMIC device ok");
 	}
+
+	m_callback = callback;
 
 	/* Get pointer to npmx device. */
 	npmx_instance_t *npmx_instance = &((struct npmx_data *)pmic_dev->data)->npmx_instance;

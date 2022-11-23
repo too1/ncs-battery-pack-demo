@@ -55,3 +55,8 @@ int app_bt_init(void)
 
 	return 0;
 }
+
+int app_bt_send(uint8_t *data_ptr, uint16_t length)
+{
+	return bt_nus_send(0, data_ptr, length);
+}
