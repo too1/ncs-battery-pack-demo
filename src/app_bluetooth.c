@@ -1,6 +1,7 @@
 #include <app_bluetooth.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/uuid.h>
+#include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/gatt.h>
 #include <zephyr/bluetooth/hci.h>
 
@@ -23,12 +24,62 @@ static const struct bt_data sd[] = {
 	BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_NUS_VAL),
 };
 
+static struct bt_conn *default_conn;
+static struct bt_gatt_exchange_params exchange_params;
+
 struct nus_message_type_t {
 	uint16_t length;
 	uint8_t buf[NUS_STRING_LEN_MAX];
 };
 
 K_MSGQ_DEFINE(m_msgq_nus_tx, sizeof(struct nus_message_type_t), BT_TX_MSG_COUNT, 4);
+
+static void bt_exchange_func(struct bt_conn *conn, uint8_t att_err,
+			  struct bt_gatt_exchange_params *params)
+{
+	struct bt_conn_info info = {0};
+	int err;
+
+	LOG_INF("MTU exchange %s", att_err == 0 ? "successful" : "failed");
+
+	err = bt_conn_get_info(conn, &info);
+	if (err) {
+		LOG_INF("Failed to get connection info %d", err);
+		return;
+	}
+}
+
+static void bt_connected_cb(struct bt_conn *conn, uint8_t err)
+{
+	if (err) {
+		LOG_ERR("Connection failed (err 0x%02x)", err);
+		return;
+	} 
+
+	LOG_INF("Connected");
+
+	default_conn = conn;
+
+	exchange_params.func = bt_exchange_func;
+
+	err = bt_gatt_exchange_mtu(default_conn, &exchange_params);
+	if (err) {
+		LOG_INF("MTU exchange failed (err %d)", err);
+	} else {
+		LOG_INF("MTU exchange pending");
+	}
+}
+
+static void bt_disconnected_cb(struct bt_conn *conn, uint8_t reason)
+{
+	LOG_INF("Disconnected (reason 0x%02x)", reason);
+	default_conn = 0;
+}
+
+BT_CONN_CB_DEFINE(conn_callbacks) = {
+	.connected = bt_connected_cb,
+	.disconnected = bt_disconnected_cb,
+};
 
 static void bt_receive_cb(struct bt_conn *conn, const uint8_t *const data, uint16_t len)
 {
@@ -80,7 +131,7 @@ int app_bt_send(uint8_t *data_ptr, uint16_t length)
 static void bt_tx_thread_func(void)
 {
 	struct nus_message_type_t new_message;
-	
+
 	while(1) {
 		k_msgq_get(&m_msgq_nus_tx, (void *)&new_message, K_FOREVER);
 

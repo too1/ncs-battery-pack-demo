@@ -24,8 +24,8 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 void pmic_callback(app_pmic_evt_t *evt)
 {
 	static uint8_t string[NUS_STRING_LEN_MAX];
-	sprintf(string, "%i", evt->type);
-	app_bt_send(string, strlen(string));
+	sprintf(string, "PMIC Evt: %s", pmic_state_name_strings[evt->type]);
+	if (app_bt_send(string, strlen(string)) < 0) LOG_ERR("BT send failed!");
 }
 
 void main(void)

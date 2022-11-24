@@ -27,6 +27,16 @@ typedef enum {
 	APP_CHARGER_EVENT_BATTERY_LOW_ALERT2, /** Event registered when second low battery voltage alert detected. */
 } npm1300_charger_event_t;
 
+const char *pmic_state_name_strings[] =  {"Battery Detected", 
+									"Battery Removed", 
+									"VBUS Detected", 
+									"VBUS Removed", 
+									"Charging Trickle Started", 
+									"Charging CC Started", 
+									"Charging CV Started", 
+									"Charging Completed", 
+									"Bat Low Alert 1", 
+									"Bat Low Alert 2"};
 
 /**
  * @brief Register the new event received from nPM device.
