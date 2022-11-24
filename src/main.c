@@ -15,17 +15,36 @@
 #include <app_led.h>
 #include <app_pmic.h>
 #include <app_bluetooth.h>
+#include <zephyr/sys/reboot.h>
 
 #include <zephyr/logging/log.h>
 
 #define LOG_MODULE_NAME main
 LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
+#define APP_BT_CMD_READ_BAT_VOLTAGE "ReadBV"
+#define APP_BT_CMD_RESET			"Reset"
+#define IS_APP_BT_CMD(a, b) (strncmp(a, b, strlen(b)) == 0)
+
+static uint8_t tmpstring[NUS_STRING_LEN_MAX];
+
 void pmic_callback(app_pmic_evt_t *evt)
 {
-	static uint8_t string[NUS_STRING_LEN_MAX];
-	sprintf(string, "PMIC Evt: %s", pmic_state_name_strings[evt->type]);
-	if (app_bt_send(string, strlen(string)) < 0) LOG_ERR("BT send failed!");
+	sprintf(tmpstring, "PMIC Evt: %s", pmic_state_name_strings[evt->type]);
+	if (app_bt_send(tmpstring, strlen(tmpstring)) < 0) LOG_ERR("BT send failed!");
+}
+void process_incoming_nus_data(app_bt_evt_t *bt_evt)
+{
+	if (IS_APP_BT_CMD(bt_evt->buf, APP_BT_CMD_READ_BAT_VOLTAGE)) {
+		LOG_INF("Read battery voltage BT command received");
+		uint16_t bat_voltage = app_pmic_get_battery_voltage();
+		sprintf(tmpstring, "Battery voltage: %i mV", bat_voltage);
+		app_bt_send(tmpstring, strlen(tmpstring));
+	} else if (IS_APP_BT_CMD(bt_evt->buf, APP_BT_CMD_RESET)) {
+		LOG_INF("Resetting....");
+		k_msleep(50);
+		sys_reboot(SYS_REBOOT_WARM);
+	}
 }
 
 void bluetooth_callback(app_bt_evt_t *bt_evt)
@@ -36,6 +55,7 @@ void bluetooth_callback(app_bt_evt_t *bt_evt)
 		case APP_BT_EVT_DISCONNECTED:
 			break;
 		case APP_BT_EVT_NUS_DATA_RECEIVED:
+			process_incoming_nus_data(bt_evt);
 			break;
 	}
 }
