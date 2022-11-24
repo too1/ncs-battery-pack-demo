@@ -26,20 +26,31 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #define APP_BT_CMD_RESET			"Reset"
 #define IS_APP_BT_CMD(a, b) (strncmp(a, b, strlen(b)) == 0)
 
-static uint8_t tmpstring[NUS_STRING_LEN_MAX];
+void bt_printf(const char *str, ...)
+{
+	static uint8_t tmpstring[NUS_STRING_LEN_MAX];
+
+    va_list myargs;
+    va_start(myargs, str);
+	vsprintf(tmpstring, str, myargs);
+    va_end(myargs);
+
+	if (app_bt_send(tmpstring, strlen(tmpstring)) < 0) {
+		LOG_ERR("Unable to send data to the NUS service");
+	}
+}
 
 void pmic_callback(app_pmic_evt_t *evt)
 {
-	sprintf(tmpstring, "PMIC Evt: %s", pmic_state_name_strings[evt->type]);
-	if (app_bt_send(tmpstring, strlen(tmpstring)) < 0) LOG_ERR("BT send failed!");
+	bt_printf("PMIC Evt: %s", pmic_state_name_strings[evt->type]);
 }
+
 void process_incoming_nus_data(app_bt_evt_t *bt_evt)
 {
 	if (IS_APP_BT_CMD(bt_evt->buf, APP_BT_CMD_READ_BAT_VOLTAGE)) {
 		LOG_INF("Read battery voltage BT command received");
 		uint16_t bat_voltage = app_pmic_get_battery_voltage();
-		sprintf(tmpstring, "Battery voltage: %i mV", bat_voltage);
-		app_bt_send(tmpstring, strlen(tmpstring));
+		bt_printf("Battery voltage: %i mV", bat_voltage);
 	} else if (IS_APP_BT_CMD(bt_evt->buf, APP_BT_CMD_RESET)) {
 		LOG_INF("Resetting....");
 		k_msleep(50);
@@ -51,6 +62,7 @@ void bluetooth_callback(app_bt_evt_t *bt_evt)
 {
 	switch(bt_evt->type) {
 		case APP_BT_EVT_CONNECTED:
+			bt_printf("Hello mister");
 			break;
 		case APP_BT_EVT_DISCONNECTED:
 			break;
