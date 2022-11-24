@@ -22,9 +22,9 @@
 #define LOG_MODULE_NAME main
 LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
-#define APP_BT_CMD_READ_BAT_VOLTAGE "ReadBV"
+#define APP_BT_CMD_READ_BAT_VOLTAGE "Rbv"
 #define APP_BT_CMD_RESET			"Reset"
-#define APP_BT_CMD_SET_BUCK_VTG		"SetV"
+#define APP_BT_CMD_SET_BUCK_VTG		"Setv"
 #define IS_APP_BT_CMD(a, b) (strncmp(a, b, strlen(b)) == 0)
 
 void bt_printf(const char *str, ...)
