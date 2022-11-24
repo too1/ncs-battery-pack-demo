@@ -24,6 +24,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #define APP_BT_CMD_READ_BAT_VOLTAGE "ReadBV"
 #define APP_BT_CMD_RESET			"Reset"
+#define APP_BT_CMD_SET_BUCK_VTG		"SetV"
 #define IS_APP_BT_CMD(a, b) (strncmp(a, b, strlen(b)) == 0)
 
 void bt_printf(const char *str, ...)
@@ -51,6 +52,11 @@ void process_incoming_nus_data(app_bt_evt_t *bt_evt)
 		LOG_INF("Read battery voltage BT command received");
 		uint16_t bat_voltage = app_pmic_get_battery_voltage();
 		bt_printf("Battery voltage: %i mV", bat_voltage);
+	} else if (IS_APP_BT_CMD(bt_evt->buf, APP_BT_CMD_SET_BUCK_VTG)) {
+		int decivolt = (bt_evt->buf[strlen(APP_BT_CMD_SET_BUCK_VTG)] - '0') * 10 +
+					   (bt_evt->buf[strlen(APP_BT_CMD_SET_BUCK_VTG) + 1] - '0');
+		LOG_INF("Attempting to set buck out to %i decivolt", decivolt);
+		app_pmic_set_buck_out_voltage(decivolt);
 	} else if (IS_APP_BT_CMD(bt_evt->buf, APP_BT_CMD_RESET)) {
 		LOG_INF("Resetting....");
 		k_msleep(50);

@@ -17,4 +17,8 @@ int app_pmic_init(app_pmic_callback_t callback);
 
 uint16_t app_pmic_get_battery_voltage(void);
 
+int app_pmic_buck_out_enable(bool enable);
+
+int app_pmic_set_buck_out_voltage(int decivolt);
+
 #endif

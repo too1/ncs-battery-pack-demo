@@ -13,6 +13,10 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 static app_pmic_callback_t m_callback;
 
+static npmx_buck_t *m_bucks[2];
+#define BUCK_OUT 0		// This buck converter can be used to power external devices, connected to the TBD connector
+#define BUCK_SYSTEM 1	// This buck converter is used to power the nRF52 device
+
 static uint16_t m_battery_voltage_mv = 0;
 
 /** @brief Possible events from requested nPM device. */
@@ -83,6 +87,25 @@ static void register_state_change(npm1300_charger_event_t event)
 	}
 	app_event.type = event;
 	m_callback(&app_event);
+}
+
+/**
+ * @brief Function for setting the buck output voltage for the specified buck instance.
+ *
+ * @param[in] p_buck  Pointer to the instance of buck.
+ * @param[in] voltage Selected voltage.
+ */
+static void set_buck_voltage(npmx_buck_t *p_buck, npmx_buck_voltage_t voltage)
+{
+	/* Set the output voltage. */
+	if (npmx_buck_normal_voltage_set(p_buck, voltage) != NPMX_SUCCESS) {
+		LOG_ERR("Unable to set normal voltage");
+	}
+
+	/* Have to be called each time to change output voltage. */
+	if (npmx_buck_vout_select_set(p_buck, NPMX_BUCK_VOUT_SELECT_SOFTWARE) != NPMX_SUCCESS) {
+		LOG_ERR("Unable to select vout reference");
+	}
 }
 
 /**
@@ -246,6 +269,10 @@ int app_pmic_init(app_pmic_callback_t callback)
 	/* Get pointer to npmx device. */
 	npmx_instance_t *npmx_instance = &((struct npmx_data *)pmic_dev->data)->npmx_instance;
 
+	/* Get a pointer to the two buck devices */
+	m_bucks[0] = npmx_buck_get(npmx_instance, 0);
+	m_bucks[1] = npmx_buck_get(npmx_instance, 1);
+
 	/* Get pointer to GPIO 0 instance. */
 	npmx_gpio_t *gpio_0 = npmx_gpio_get(npmx_instance, 0);
 
@@ -328,4 +355,16 @@ int app_pmic_init(app_pmic_callback_t callback)
 uint16_t app_pmic_get_battery_voltage(void)
 {
 	return m_battery_voltage_mv;
+}
+
+int app_pmic_buck_out_enable(bool enable)
+{
+	return 0;
+}
+
+int app_pmic_set_buck_out_voltage(int decivolt)
+{
+	if(decivolt < 10 || decivolt > 33) return -EINVAL;
+	set_buck_voltage(m_bucks[BUCK_OUT], (npmx_buck_voltage_t)(decivolt-10));
+	return 0;
 }
