@@ -28,6 +28,18 @@ void pmic_callback(app_pmic_evt_t *evt)
 	if (app_bt_send(string, strlen(string)) < 0) LOG_ERR("BT send failed!");
 }
 
+void bluetooth_callback(app_bt_evt_t *bt_evt)
+{
+	switch(bt_evt->type) {
+		case APP_BT_EVT_CONNECTED:
+			break;
+		case APP_BT_EVT_DISCONNECTED:
+			break;
+		case APP_BT_EVT_NUS_DATA_RECEIVED:
+			break;
+	}
+}
+
 void main(void)
 {
 	int ret;
@@ -39,7 +51,7 @@ void main(void)
 	if(ret == 0) app_led_on(APP_LED_PMIC);
 	else app_led_off(APP_LED_PMIC);
 	
-	ret = app_bt_init();
+	ret = app_bt_init(bluetooth_callback);
 	if (ret < 0) {
 		LOG_ERR("Failed to initialize Bluetooth: %i", ret);
 		return;

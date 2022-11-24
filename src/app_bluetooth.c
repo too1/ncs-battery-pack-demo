@@ -24,6 +24,8 @@ static const struct bt_data sd[] = {
 	BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_NUS_VAL),
 };
 
+static app_bt_callback_t m_app_callback;
+
 static struct bt_conn *default_conn;
 static struct bt_gatt_exchange_params exchange_params;
 
@@ -51,6 +53,8 @@ static void bt_exchange_func(struct bt_conn *conn, uint8_t att_err,
 
 static void bt_connected_cb(struct bt_conn *conn, uint8_t err)
 {
+	static app_bt_evt_t con_event;
+
 	if (err) {
 		LOG_ERR("Connection failed (err 0x%02x)", err);
 		return;
@@ -59,6 +63,9 @@ static void bt_connected_cb(struct bt_conn *conn, uint8_t err)
 	LOG_INF("Connected");
 
 	default_conn = conn;
+
+	con_event.type = APP_BT_EVT_CONNECTED;
+	m_app_callback(&con_event);
 
 	exchange_params.func = bt_exchange_func;
 
@@ -72,8 +79,13 @@ static void bt_connected_cb(struct bt_conn *conn, uint8_t err)
 
 static void bt_disconnected_cb(struct bt_conn *conn, uint8_t reason)
 {
+	static app_bt_evt_t discon_event;
+
 	LOG_INF("Disconnected (reason 0x%02x)", reason);
 	default_conn = 0;
+	
+	discon_event.type = APP_BT_EVT_DISCONNECTED;
+	m_app_callback(&discon_event);
 }
 
 BT_CONN_CB_DEFINE(conn_callbacks) = {
@@ -83,19 +95,28 @@ BT_CONN_CB_DEFINE(conn_callbacks) = {
 
 static void bt_receive_cb(struct bt_conn *conn, const uint8_t *const data, uint16_t len)
 {
+	static app_bt_evt_t receive_event;
+
 	LOG_INF("Bluetooth data received");
+
+	receive_event.type = APP_BT_EVT_NUS_DATA_RECEIVED;
+	receive_event.buf = data;
+	receive_event.length = len;
+	m_app_callback(&receive_event);
 }
 
 static struct bt_nus_cb nus_cb = {
 	.received = bt_receive_cb,
 };
 
-int app_bt_init(void)
+int app_bt_init(app_bt_callback_t callback)
 {
 	int ret;
 
 	ret = bt_enable(NULL);
 	if (ret < 0) return ret;
+
+	m_app_callback = callback;
 
 	LOG_INF("Bluetooth initialized");
 
