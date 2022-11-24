@@ -21,21 +21,11 @@
 #define LOG_MODULE_NAME main
 LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
-int send_type = 0;
-
-static void send_bt_packet(struct k_work *item)
-{
-	uint8_t string[20];
-	sprintf(string, "%i", send_type);
-	app_bt_send(string, strlen(string));
-}
-
-K_WORK_DEFINE(work_send_bt_packet, send_bt_packet);
-
 void pmic_callback(app_pmic_evt_t *evt)
 {
-	send_type = evt->type;
-	k_work_submit(&work_send_bt_packet);
+	static uint8_t string[NUS_STRING_LEN_MAX];
+	sprintf(string, "%i", evt->type);
+	app_bt_send(string, strlen(string));
 }
 
 void main(void)

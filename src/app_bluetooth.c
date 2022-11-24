@@ -23,6 +23,13 @@ static const struct bt_data sd[] = {
 	BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_NUS_VAL),
 };
 
+struct nus_message_type_t {
+	uint16_t length;
+	uint8_t buf[NUS_STRING_LEN_MAX];
+};
+
+K_MSGQ_DEFINE(m_msgq_nus_tx, sizeof(struct nus_message_type_t), BT_TX_MSG_COUNT, 4);
+
 static void bt_receive_cb(struct bt_conn *conn, const uint8_t *const data, uint16_t len)
 {
 	LOG_INF("Bluetooth data received");
@@ -58,5 +65,28 @@ int app_bt_init(void)
 
 int app_bt_send(uint8_t *data_ptr, uint16_t length)
 {
-	return bt_nus_send(0, data_ptr, length);
+	struct nus_message_type_t new_message;
+
+	new_message.length = length;
+	memcpy(new_message.buf, data_ptr, length);
+
+	if (k_msgq_put(&m_msgq_nus_tx, (void *)&new_message, K_NO_WAIT) != 0) {
+		return -ENOMEM;
+	}
+
+	return 0;
 }
+
+static void bt_tx_thread_func(void)
+{
+	struct nus_message_type_t new_message;
+	
+	while(1) {
+		k_msgq_get(&m_msgq_nus_tx, (void *)&new_message, K_FOREVER);
+
+		bt_nus_send(0, new_message.buf, new_message.length);
+	}
+}
+
+K_THREAD_DEFINE(m_bt_tx_thread, BT_TX_THREAD_STACKSIZE, bt_tx_thread_func,
+				NULL, NULL, NULL, BT_TX_THREAD_PRIORITY, 0, 0);
