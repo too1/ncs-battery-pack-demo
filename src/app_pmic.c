@@ -13,6 +13,8 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 static app_pmic_callback_t m_callback;
 
+static uint16_t m_battery_voltage_mv = 0;
+
 /** @brief Possible events from requested nPM device. */
 typedef enum {
 	APP_CHARGER_EVENT_BATTERY_DETECTED, /** Event registered when battery connection detected. */
@@ -112,16 +114,15 @@ static void adc_callback(npmx_instance_t *p_pm, npmx_callback_type_t type, uint8
 {
 	if ((mask & (uint8_t)NPMX_EVENT_GROUP_ADC_BAT_READY_MASK)) {
 		static uint16_t battery_voltage_millivolts_last = 0;
-		uint16_t battery_voltage_millivolts;
 		if (npmx_adc_meas_get(npmx_adc_get(p_pm, 0), NPMX_ADC_MEAS_VBAT,
-				      &battery_voltage_millivolts) == NPMX_SUCCESS) {
-			if (battery_voltage_millivolts != battery_voltage_millivolts_last) {
-				battery_voltage_millivolts_last = battery_voltage_millivolts;
-				LOG_INF("Battery:\t %d mV", battery_voltage_millivolts);
+				      &m_battery_voltage_mv) == NPMX_SUCCESS) {
+			if (m_battery_voltage_mv != battery_voltage_millivolts_last) {
+				battery_voltage_millivolts_last = m_battery_voltage_mv;
+				LOG_INF("Battery:\t %d mV", m_battery_voltage_mv);
 			}
-			if (battery_voltage_millivolts < CONFIG_BATTERY_VOLTAGE_THRESHOLD_2) {
+			if (m_battery_voltage_mv < CONFIG_BATTERY_VOLTAGE_THRESHOLD_2) {
 				register_state_change(APP_CHARGER_EVENT_BATTERY_LOW_ALERT2);
-			} else if (battery_voltage_millivolts <
+			} else if (m_battery_voltage_mv <
 				   CONFIG_BATTERY_VOLTAGE_THRESHOLD_1) {
 				register_state_change(APP_CHARGER_EVENT_BATTERY_LOW_ALERT1);
 			}
@@ -322,4 +323,9 @@ int app_pmic_init(app_pmic_callback_t callback)
 	npmx_adc_config_set(npmx_adc_get(npmx_instance, 0), &config);
 
 	return 0;
+}
+
+uint16_t app_pmic_get_battery_voltage(void)
+{
+	return m_battery_voltage_mv;
 }
